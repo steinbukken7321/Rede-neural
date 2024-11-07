@@ -1,0 +1,267 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+import os
+import tensorflow as tf
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Define para WARNING
+"""
+TF_CPP_MIN_LOG_LEVEL. Essa variável controla o nível dos logs do TensorFlow. Aqui estão os níveis disponíveis:
+
+0: DEBUG (mostra todas as mensagens)
+1: INFO (mostra mensagens informativas, que incluem a configuração do oneDNN)
+2: WARNING (mostra apenas mensagens de aviso)
+3: ERROR (mostra apenas mensagens de erro)
+"""
+
+"""""""""""""""
+
+BANCO DE DADOS
+
+"""""""""""""""
+# carregando o dataset MNIST
+mnist = tf.keras.datasets.mnist
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+# redimensionar a imagem
+def resize_image(image, size=(28, 28)):
+    img = Image.fromarray(image)
+    img = img.resize(size, Image.LANCZOS)
+    return np.array(img)
+
+# função para salvar as imagens em formato JPEG
+def save_images(x_data, y_data, num_samples_per_digit, image_dir="./images"):
+    os.makedirs(image_dir, exist_ok=True)  # Cria a pasta, se não existir
+    for digit in range(10):
+        indices = np.where(y_data == digit)[0]
+        # p/ selecionar amostras para o dígito atual
+        sample_indices = np.random.choice(
+            indices, num_samples_per_digit, replace=False)
+
+        for i, idx in enumerate(sample_indices):
+            image = x_data[idx]
+            resized_image = resize_image(image)
+            # converte o numpy array de volta para imagem PIL
+            image_pil = Image.fromarray(resized_image)
+            image_pil.save(os.path.join(image_dir, f"digit_{
+                           digit}_{i}.jpg"), format='JPEG')
+
+    print("Imagens salvas com sucesso na pasta:", image_dir)
+
+
+# função para verificar se todas as imagens necessárias existem
+def check_and_save_images(x_data, y_data, num_samples_per_digit, image_dir="./images"):
+    os.makedirs(image_dir, exist_ok=True)  # criar a pasta, se não existir
+    images_missing = False  # flag para verificar se alguma imagem está faltando
+
+    # verificar para cada dígito (0-9) e cada amostra
+    for digit in range(10):
+        for i in range(num_samples_per_digit):
+            image_path = os.path.join(image_dir, f"digit_{digit}_{i}.jpg")
+            if not os.path.exists(image_path):
+                # caso a imagem não exista, mudar a flag e interromper a verificação
+                print(f"Imagem faltando: {image_path}")
+                images_missing = True
+
+    # se alguma imagem estiver faltando, gerar todas novamente
+    if images_missing:
+        print("Gerando imagens faltantes...")
+        save_images(x_data, y_data, num_samples_per_digit, image_dir)
+    else:
+        print("Todas as imagens já foram geradas.")
+
+# função para contar e exibir o número de imagens geradas para cada dígito
+def count_images_per_digit(x_data, y_data, num_samples_per_digit):
+    total_images_generated = 0
+    images_per_digit = []
+
+    for digit in range(10):
+        indices = np.where(y_data == digit)[0]
+        sample_indices = np.random.choice(
+            indices, num_samples_per_digit, replace=False)
+        num_generated = len(sample_indices)
+        images_per_digit.append(num_generated)
+        total_images_generated += num_generated
+
+    # p/ exibir contagem de imagens
+    print(f"Total de imagens geradas: {total_images_generated}")
+    imprimir_imagens = False  # True/False p/ impressão
+    if imprimir_imagens:
+        for digit in range(10):
+            print(f"Imagens geradas para o dígito {
+                  digit}: {images_per_digit[digit]}")
+
+# função para exibir um número específico de imagens de cada dígito
+def show_sample_images(x_data, y_data, num_samples_per_digit=5):
+    plt.figure(figsize=(28, 28))
+
+    for digit in range(10):
+        indices = np.where(y_data == digit)[0]
+        # selecionar exatamente o número de amostras a serem exibidas para o dígito atual
+        sample_indices = np.random.choice(
+            indices, num_samples_per_digit, replace=False)
+
+        for i, idx in enumerate(sample_indices):
+            image = x_data[idx]
+            resized_image = resize_image(image)
+
+            # organizar as imagens no gráfico
+            plt.subplot(10, num_samples_per_digit, digit *
+                        num_samples_per_digit + i + 1)
+            plt.imshow(resized_image, cmap='gray')
+            plt.axis('off')
+
+    # ajusta a altura e a largura dos espaços
+    plt.subplots_adjust(hspace=0.3, wspace=0.3)
+    plt.show()
+
+
+# numero de imagens geradas por digito
+num_samples_per_digit = 1000  # por exemplo: 1000 imagens por dígito
+# função para verificar e salvar imagens (se necessario)
+check_and_save_images(x_train, y_train, num_samples_per_digit)
+# contar e exibir número de imagens
+count_images_per_digit(x_train, y_train, num_samples_per_digit)
+show_sample_images(x_train, y_train)  # Exibir amostra de imagens
+
+"""""""""""""""
+
+PROCESSAMENTO
+
+"""""""""""""""
+
+
+def convert_images_to_jpg(image_dir="./images"):
+    total_images_checked = 0  # contador para o total de imagens verificadas
+    images_converted = 0  # contador para o total de imagens convertidas
+
+    # percorrer todos os arquivos na pasta especificada
+    for filename in os.listdir(image_dir):
+        total_images_checked += 1  # aumentar contador para cada imagem verificada
+
+        # ignorar arquivos que já são JPEG
+        if filename.lower().endswith(".jpg") or filename.lower().endswith(".jpeg"):
+            continue
+
+        # verifica a extensão e tenta abrir a imagem
+        image_path = os.path.join(image_dir, filename)
+        try:
+            img = Image.open(image_path)
+
+            # define o novo caminho para a imagem JPEG, mantendo o mesmo nome
+            new_image_path = os.path.join(
+                image_dir, f"{os.path.splitext(filename)[0]}.jpg")
+
+            # converte e salva como JPEG
+            img.convert("RGB").save(new_image_path, "JPEG")
+            print(f"Imagem convertida e salva como: {new_image_path}")
+
+            # p/ excluir a imagem original após a conversão
+            os.remove(image_path)
+            print(f"Imagem original removida: {image_path}")
+
+            images_converted += 1  # aumentar contador de imagens convertidas (organização)
+
+        except Exception as e:
+            print(f"Erro ao processar a imagem {filename}: {e}")
+
+    # mensagem caso nenhuma imagem tenha sido convertida
+    if images_converted == 0:
+        print(f"Nenhuma imagem foi convertida.\nTotal de imagens verificadas: {
+              total_images_checked}.")
+    else:
+        print(f"Total de imagens verificadas: {
+              total_images_checked}. Total de imagens convertidas: {images_converted}.")
+
+# função para converter uma imagem em matriz de intensidade
+def converter_para_matriz_intensidade(imagem):
+    # converte a imagem para escala de cinza e matriz de intensidade
+    imagem_cinza = imagem.convert("L")
+    matriz_intensidade = np.array(imagem_cinza)
+
+    return imagem_cinza, matriz_intensidade
+
+# função para converter todas as imagens em matrizes de intensidade
+def convert_images_to_intensity_matrix(image_dir="./images"):
+    intensity_matrices = []  # lista para armazenar as matrizes de intensidade
+    # percorrer todos os arquivos na pasta especificada
+    for filename in os.listdir(image_dir):
+        if filename.lower().endswith((".jpg", ".jpeg")):  # p/ verificar se o arquivo é uma imagem JPEG
+            image_path = os.path.join(image_dir, filename)
+            try:
+                img = Image.open(image_path)  # abre a imagem
+                _, intensity_matrix = converter_para_matriz_intensidade(
+                    img)  # converte para matriz de intensidade
+                intensity_matrices.append(intensity_matrix)  # adicionar à lista
+            # p/ verificação de erros
+            except Exception as e:
+                print(f"Erro ao processar a imagem {filename}: {e}")
+
+    return intensity_matrices  # retorna a lista de matrizes de intensidade
+
+# função para adicionar zero padding a todas as imagens
+def add_zero_padding(intensity_matrices, padding_size=1):
+    padded_matrices = []  # lista para armazenar as matrizes com zero padding
+
+    for matrix in intensity_matrices:
+        # adiciona zero padding em volta da matriz
+        padded_matrix = np.pad(
+            matrix, pad_width=padding_size, mode='constant', constant_values=0)
+        padded_matrices.append(padded_matrix)  # adiciona à lista
+
+    return padded_matrices  # retorna a lista de matrizes com padding
+
+# função para aplicar um filtro de média NxN em uma matriz com zero padding
+def matriz_e_media_com_padding(matrizes_intensidade, tamanho_matriz):
+    # lista para armazenar as novas matrizes após a suavização
+    nova_matrizes_suavizadas = []
+    # verifica se o tamanho da matriz é ímpar
+    if tamanho_matriz % 2 == 0:
+        raise ValueError("O tamanho da matriz deve ser um número ímpar.")
+
+    offset = tamanho_matriz // 2  # Calcula o deslocamento para a janela
+
+    # percorre cada matriz de intensidade
+    for matriz_intensidade in matrizes_intensidade:
+        linhas, colunas = matriz_intensidade.shape
+        # inicializa a nova matriz
+        nova_matriz = np.zeros_like(matriz_intensidade)
+
+        # percorre a matriz
+        for i in range(linhas):
+            for j in range(colunas):
+                # se estiver em uma posição com padding (ou seja, se i ou j estiverem dentro do offset)
+                if i < offset or i >= linhas - offset or j < offset or j >= colunas - offset:
+                    nova_matriz[i, j] = 0  # mantém zero se for padding
+                else:
+                    # extrai a janela NxN ao redor de cada pixel
+                    janela = matriz_intensidade[i - offset:i +
+                                                offset + 1, j - offset:j + offset + 1]
+                    # calcula a média da janela e preenche na nova matriz
+                    nova_matriz[i, j] = np.mean(janela)
+
+        # adiciona a nova matriz à lista
+        nova_matrizes_suavizadas.append(nova_matriz)
+
+    return nova_matrizes_suavizadas  # retorna a lista de matrizes suavizadas
+
+
+# chamar a função após salvar as imagens
+convert_images_to_jpg()
+# converter imagens para matrizes de intensidade
+intensity_matrices = convert_images_to_intensity_matrix()
+# adicionar zero padding na lista de imagens
+padded_matrices = add_zero_padding(intensity_matrices)
+# tamanho do filtro de suavização para as matrizes de intensidade e aplicação do filtro p/ cada img
+tamanho_filtro = 3  # por exemplo: filtro 3x3
+matrizes_suavizadas = matriz_e_media_com_padding(padded_matrices, tamanho_filtro)  # aplicar o filtro de suavização
+
+
+# Após calcular as matrizes suavizadas
+np.save('matrizes_suavizadas.npy', matrizes_suavizadas)
+
+
+"""""""""""""""
+
+REDE NEURAL
+
+"""""""""""""""
